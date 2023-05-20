@@ -113,7 +113,7 @@ def paulstretch(samplerate, smp, stretch, windowsize_seconds, outfilename):
     outfile.close()
 
 # Start of the main program
-print ("Paul's Extreme Sound Stretch (Paulstretch) - Python version 20141220")
+print ("Paul's Extreme Sound Stretch (Paulstretch)")
 print ("by Nasca Octavian PAUL, Targu Mures, Romania\n")
 
 # Create command line option parser
