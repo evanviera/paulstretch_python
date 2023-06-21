@@ -10,10 +10,12 @@
 # Modified by Evan Viera
 # this file is released under Public Domain
 #
+# Usage example
+# python paulstretch.py -s 15 <input path>
+#
 
 import sys
-import scipy.io.wavfile
-import wave
+import soundfile as sf
 from numpy import *
 from optparse import OptionParser
 import os
@@ -21,13 +23,10 @@ import os
 # Function to load WAV file
 def load_wav(filename):
     try:
-        wavedata = scipy.io.wavfile.read(filename)
-        samplerate = int(wavedata[0])
-        smp = wavedata[1] * (1.0/32768.0)
-        smp = smp.transpose()
-        if len(smp.shape) == 1:  # Convert to stereo if it's not
-            smp = tile(smp, (2, 1))
-        return (samplerate, smp)
+        smp, samplerate = sf.read(filename, dtype='float32')
+        if len(smp.shape) == 1:  # Convert to 2D array if mono
+            smp = smp[:, None]
+        return (samplerate, smp.T)
     except:
         print ("Error loading wav: "+filename)
         return None
@@ -52,10 +51,6 @@ def optimize_windowsize(n):
 # Function to perform Paulstretch
 def paulstretch(samplerate, smp, stretch, windowsize_seconds, outfilename):
     nchannels = smp.shape[0]
-    outfile = wave.open(outfilename, "wb")
-    outfile.setsampwidth(2)
-    outfile.setframerate(samplerate)
-    outfile.setnchannels(nchannels)
 
     # Initialize window size
     windowsize = int(windowsize_seconds * samplerate)
@@ -78,13 +73,14 @@ def paulstretch(samplerate, smp, stretch, windowsize_seconds, outfilename):
 
     # Create window
     window = pow(1.0 - pow(linspace(-1.0, 1.0, windowsize), 2.0), 1.25)
-    old_windowed_buf = zeros((2, windowsize))
+    old_windowed_buf = zeros((nchannels, windowsize))
 
+    output_list = []
     while True:
         istart_pos = int(floor(start_pos))
         buf = smp[:, istart_pos:istart_pos + windowsize]
         if buf.shape[1] < windowsize:
-            buf = append(buf, zeros((2, windowsize-buf.shape[1])), 1)
+            buf = append(buf, zeros((nchannels, windowsize-buf.shape[1])), 1)
         buf = buf * window
 
         # Get the amplitudes of the frequency components and discard the phases
@@ -102,7 +98,7 @@ def paulstretch(samplerate, smp, stretch, windowsize_seconds, outfilename):
         old_windowed_buf = buf
         output[output > 1.0] = 1.0
         output[output < -1.0] = -1.0
-        outfile.writeframes(int16(output.ravel('F') * 32767.0).tobytes())
+        output_list.append(output)
 
         start_pos += displace_pos
         if start_pos >= nsamples:
@@ -110,7 +106,8 @@ def paulstretch(samplerate, smp, stretch, windowsize_seconds, outfilename):
             break
         print ("%d %% \r" % int(100.0 * start_pos / nsamples), end='', flush=True)
 
-    outfile.close()
+    output = concatenate(output_list, axis=1)
+    sf.write(outfilename, output.T, samplerate)
 
 # Start of the main program
 print ("Paul's Extreme Sound Stretch (Paulstretch)")
